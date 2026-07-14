@@ -4,14 +4,14 @@ import pandas as pd
 import threading
 import os
 
-# Novo layout moderno e estruturado
+# Layout moderno e estruturado
 ctk.set_appearance_mode("dark")
 ctk.set_default_color_theme("green")
 
 class ComparadorApp(ctk.CTk):
     def __init__(self):
         super().__init__()
-        self.title("Comparador de Segurados v2.0")
+        self.title("Comparador de Segurados v3.0")
         self.geometry("750x550")
         self.resizable(False, False)
         
@@ -41,8 +41,8 @@ class ComparadorApp(ctk.CTk):
         self.progress.pack(pady=20)
         self.progress.set(0)
         
-        # Botão Executar
-        self.btn_executar = ctk.CTkButton(self.main_frame, text="⚡ Verificar e Gerar Relatório (.txt)", command=self.iniciar_thread_verificacao, 
+        # Botão Executar atualizado
+        self.btn_executar = ctk.CTkButton(self.main_frame, text="⚡ Verificar e Gerar Planilha", command=self.iniciar_thread_verificacao, 
                                           fg_color="#006400", hover_color="#004d00", font=("Roboto", 16, "bold"), height=50)
         self.btn_executar.pack(pady=10, padx=20, fill="x")
 
@@ -83,7 +83,6 @@ class ComparadorApp(ctk.CTk):
             df_atual = self.ler_arquivo(self.arquivo_atual)
             df_conferida = self.ler_arquivo(self.arquivo_conferido)
             
-            # Dicionário para agrupar erros da mesma pessoa
             erros_dict = {}
             total_linhas = len(df_atual)
             
@@ -118,40 +117,54 @@ class ComparadorApp(ctk.CTk):
                     if certificado != str(row_conf.get('CERTIFICADO', '')).strip():
                         inconsistencias.append(f"CERTIFICADO (Atual: {certificado} -> Conf: {row_conf.get('CERTIFICADO')})")
                         
-                    # Se encontrou alguma inconsistência, salva na chave da pessoa
                     if inconsistencias:
                         erros_dict[(nome, cpf)] = inconsistencias
 
-            self.gerar_txt(erros_dict)
+            self.gerar_planilha(erros_dict)
             
         except Exception as e:
             messagebox.showerror("Erro de Processamento", f"Ocorreu um erro ao ler os arquivos:\n{str(e)}")
         finally:
-            self.btn_executar.configure(state="normal", text="⚡ Verificar e Gerar Relatório (.txt)")
+            self.btn_executar.configure(state="normal", text="⚡ Verificar e Gerar Planilha")
             self.progress.set(1)
 
-    def gerar_txt(self, erros_dict):
+    def gerar_planilha(self, erros_dict):
         if not erros_dict:
             messagebox.showinfo("Sucesso", "Nenhum erro encontrado! Os arquivos batem perfeitamente.")
             return
 
-        txt_path = filedialog.asksaveasfilename(defaultextension=".txt", filetypes=[("Arquivo de Texto", "*.txt")], initialfile="Inconsistencias.txt")
-        if not txt_path:
+        # Agora salva como .xlsx do Excel ou .csv
+        planilha_path = filedialog.asksaveasfilename(
+            defaultextension=".xlsx", 
+            filetypes=[("Planilha do Excel", "*.xlsx"), ("Arquivo CSV", "*.csv")], 
+            initialfile="Inconsistencias.xlsx"
+        )
+        
+        if not planilha_path:
             return
         
         try:
-            with open(txt_path, 'w', encoding='utf-8') as f:
-                f.write(f"Total de segurados com divergências: {len(erros_dict)}\n")
-                f.write("="*100 + "\n\n")
+            # Transforma as informações para o formato de planilha
+            dados_planilha = []
+            for (nome, cpf), lista_erros in erros_dict.items():
+                linha = {"Nome do Segurado": nome, "CPF": cpf}
+                # Adiciona uma nova coluna para cada erro daquela pessoa
+                for i, erro in enumerate(lista_erros):
+                    linha[f"Erro {i+1}"] = erro
+                dados_planilha.append(linha)
                 
-                # Escreve os dados formatados em uma única linha por segurado
-                for (nome, cpf), lista_erros in erros_dict.items():
-                    detalhes = " | ".join(lista_erros)
-                    f.write(f"{nome};{cpf};{detalhes}\n")
-                    
-            messagebox.showinfo("Sucesso", f"Relatório salvo com sucesso em:\n{txt_path}")
+            # Cria o DataFrame (tabela) com os dados
+            df_relatorio = pd.DataFrame(dados_planilha)
+            
+            # Exporta para o arquivo escolhido
+            if planilha_path.endswith('.csv'):
+                df_relatorio.to_csv(planilha_path, index=False, sep=';', encoding='utf-8-sig')
+            else:
+                df_relatorio.to_excel(planilha_path, index=False)
+                
+            messagebox.showinfo("Sucesso", f"Planilha de inconsistências salva com sucesso em:\n{planilha_path}")
         except Exception as e:
-            messagebox.showerror("Erro", f"Não foi possível salvar o arquivo:\n{str(e)}")
+            messagebox.showerror("Erro", f"Não foi possível salvar a planilha:\n{str(e)}")
 
 if __name__ == "__main__":
     app = ComparadorApp()
