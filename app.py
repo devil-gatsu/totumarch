@@ -1,52 +1,57 @@
 import customtkinter as ctk
 from tkinter import filedialog, messagebox
 import pandas as pd
-from fpdf import FPDF
 import threading
 import os
 
-# Configuração visual moderna
+# Novo layout moderno e estruturado
 ctk.set_appearance_mode("dark")
-ctk.set_default_color_theme("blue")
+ctk.set_default_color_theme("green")
 
 class ComparadorApp(ctk.CTk):
     def __init__(self):
         super().__init__()
-        self.title("Comparador de Segurados")
-        self.geometry("650x500")
+        self.title("Comparador de Segurados v2.0")
+        self.geometry("750x550")
         self.resizable(False, False)
+        
+        # Container principal com bordas arredondadas
+        self.main_frame = ctk.CTkFrame(self, corner_radius=15)
+        self.main_frame.pack(pady=20, padx=20, fill="both", expand=True)
+
+        self.lbl_title = ctk.CTkLabel(self.main_frame, text="🔍 Verificador de Inconsistências", font=("Roboto", 24, "bold"))
+        self.lbl_title.pack(pady=(20, 20))
+        
+        # Área de seleção de arquivos (Frame interno)
+        self.frame_files = ctk.CTkFrame(self.main_frame, fg_color="transparent")
+        self.frame_files.pack(pady=10, fill="x", padx=20)
+        
+        self.btn_atual = ctk.CTkButton(self.frame_files, text="📂 1. Planilha Atual", command=self.selecionar_atual, width=200, height=45, font=("Roboto", 14, "bold"))
+        self.btn_atual.grid(row=0, column=0, padx=10, pady=15)
+        self.lbl_atual = ctk.CTkLabel(self.frame_files, text="Nenhum arquivo...", text_color="gray", width=350, anchor="w", font=("Roboto", 12))
+        self.lbl_atual.grid(row=0, column=1, padx=10, pady=15)
+        
+        self.btn_conferido = ctk.CTkButton(self.frame_files, text="📂 2. Planilha a Conferir", command=self.selecionar_conferida, width=200, height=45, font=("Roboto", 14, "bold"))
+        self.btn_conferido.grid(row=1, column=0, padx=10, pady=15)
+        self.lbl_conferido = ctk.CTkLabel(self.frame_files, text="Nenhum arquivo...", text_color="gray", width=350, anchor="w", font=("Roboto", 12))
+        self.lbl_conferido.grid(row=1, column=1, padx=10, pady=15)
+
+        # Barra de Progresso
+        self.progress = ctk.CTkProgressBar(self.main_frame, width=550, height=15)
+        self.progress.pack(pady=20)
+        self.progress.set(0)
+        
+        # Botão Executar
+        self.btn_executar = ctk.CTkButton(self.main_frame, text="⚡ Verificar e Gerar Relatório (.txt)", command=self.iniciar_thread_verificacao, 
+                                          fg_color="#006400", hover_color="#004d00", font=("Roboto", 16, "bold"), height=50)
+        self.btn_executar.pack(pady=10, padx=20, fill="x")
+
+        # Rodapé
+        self.lbl_footer = ctk.CTkLabel(self, text="Criado por Matheus Carvalho", font=("Roboto", 12, "italic"), text_color="gray")
+        self.lbl_footer.pack(side="bottom", pady=10)
         
         self.arquivo_atual = ""
         self.arquivo_conferido = ""
-        
-        # Interface - Título
-        self.lbl_title = ctk.CTkLabel(self, text="Verificador de Inconsistências", font=("Roboto", 24, "bold"))
-        self.lbl_title.pack(pady=(20, 10))
-        
-        # Interface - Seleção de Arquivos
-        self.btn_atual = ctk.CTkButton(self, text="1. Escolher Planilha Atual", command=self.selecionar_atual, width=300)
-        self.btn_atual.pack(pady=10)
-        self.lbl_atual = ctk.CTkLabel(self, text="Nenhum arquivo atual selecionado", text_color="gray")
-        self.lbl_atual.pack()
-        
-        self.btn_conferido = ctk.CTkButton(self, text="2. Escolher Planilha a Conferir", command=self.selecionar_conferida, width=300)
-        self.btn_conferido.pack(pady=(20, 10))
-        self.lbl_conferido = ctk.CTkLabel(self, text="Nenhum arquivo para conferência selecionado", text_color="gray")
-        self.lbl_conferido.pack()
-        
-        # Interface - Barra de Progresso
-        self.progress = ctk.CTkProgressBar(self, width=400)
-        self.progress.pack(pady=25)
-        self.progress.set(0)
-        
-        # Interface - Botão de Execução
-        self.btn_executar = ctk.CTkButton(self, text="Verificar e Gerar PDF", command=self.iniciar_thread_verificacao, 
-                                          fg_color="#28a745", hover_color="#218838", font=("Roboto", 16, "bold"), width=300, height=40)
-        self.btn_executar.pack(pady=10)
-        
-        # Interface - Rodapé
-        self.lbl_footer = ctk.CTkLabel(self, text="Criado por Matheus Carvalho", font=("Roboto", 12, "italic"), text_color="gray")
-        self.lbl_footer.pack(side="bottom", pady=15)
 
     def selecionar_atual(self):
         self.arquivo_atual = filedialog.askopenfilename(filetypes=[("Arquivos de Texto e CSV", "*.txt *.csv *.TXT")])
@@ -78,7 +83,8 @@ class ComparadorApp(ctk.CTk):
             df_atual = self.ler_arquivo(self.arquivo_atual)
             df_conferida = self.ler_arquivo(self.arquivo_conferido)
             
-            erros = []
+            # Dicionário para agrupar erros da mesma pessoa
+            erros_dict = {}
             total_linhas = len(df_atual)
             
             for idx, row in df_atual.iterrows():
@@ -98,56 +104,54 @@ class ComparadorApp(ctk.CTk):
                                      (df_conferida['CPF'].str.strip() == cpf)]
                 
                 if match.empty:
-                    erros.append(f"NOME/CPF NAO ENCONTRADO OU DIVERGENTE: {nome} (CPF: {cpf})")
+                    erros_dict[(nome, cpf)] = ["NÃO ENCONTRADO NA PLANILHA CONFERIDA"]
                 else:
                     row_conf = match.iloc[0]
+                    inconsistencias = []
                     
                     if nasc != str(row_conf.get('DATA DE NASCIMENTO', '')).strip():
-                        erros.append(f"DIVERGENCIA - DATA NASCIMENTO | {nome} | Atual: {nasc} | Conferida: {row_conf.get('DATA DE NASCIMENTO')}")
+                        inconsistencias.append(f"NASCIMENTO (Atual: {nasc} -> Conf: {row_conf.get('DATA DE NASCIMENTO')})")
                     
                     if matricula != str(row_conf.get('MATRICULA', '')).strip():
-                        erros.append(f"DIVERGENCIA - MATRICULA | {nome} | Atual: {matricula} | Conferida: {row_conf.get('MATRICULA')}")
+                        inconsistencias.append(f"MATRÍCULA (Atual: {matricula} -> Conf: {row_conf.get('MATRICULA')})")
                         
                     if certificado != str(row_conf.get('CERTIFICADO', '')).strip():
-                        erros.append(f"DIVERGENCIA - CERTIFICADO | {nome} | Atual: {certificado} | Conferida: {row_conf.get('CERTIFICADO')}")
+                        inconsistencias.append(f"CERTIFICADO (Atual: {certificado} -> Conf: {row_conf.get('CERTIFICADO')})")
+                        
+                    # Se encontrou alguma inconsistência, salva na chave da pessoa
+                    if inconsistencias:
+                        erros_dict[(nome, cpf)] = inconsistencias
 
-            self.gerar_pdf(erros)
+            self.gerar_txt(erros_dict)
             
         except Exception as e:
             messagebox.showerror("Erro de Processamento", f"Ocorreu um erro ao ler os arquivos:\n{str(e)}")
         finally:
-            self.btn_executar.configure(state="normal", text="Verificar e Gerar PDF")
+            self.btn_executar.configure(state="normal", text="⚡ Verificar e Gerar Relatório (.txt)")
             self.progress.set(1)
 
-    def gerar_pdf(self, erros):
-        if not erros:
-            messagebox.showinfo("Sucesso", "Nenhum erro ou divergência encontrado! Os arquivos batem perfeitamente.")
+    def gerar_txt(self, erros_dict):
+        if not erros_dict:
+            messagebox.showinfo("Sucesso", "Nenhum erro encontrado! Os arquivos batem perfeitamente.")
             return
 
-        pdf_path = filedialog.asksaveasfilename(defaultextension=".pdf", filetypes=[("PDF files", "*.pdf")], initialfile="Relatorio_Inconsistencias.pdf")
-        if not pdf_path:
+        txt_path = filedialog.asksaveasfilename(defaultextension=".txt", filetypes=[("Arquivo de Texto", "*.txt")], initialfile="Inconsistencias.txt")
+        if not txt_path:
             return
-
-        pdf = FPDF()
-        pdf.add_page()
-        pdf.set_font("Arial", 'B', 16)
-        pdf.cell(200, 10, txt="Relatorio de Inconsistencias - Segurados", ln=True, align='C')
-        pdf.ln(10)
         
-        pdf.set_font("Arial", size=10)
-        pdf.cell(200, 10, txt=f"Total de inconsistencias encontradas: {len(erros)}", ln=True)
-        pdf.ln(5)
-        
-        pdf.set_font("Arial", size=9)
-        for erro in erros:
-            pdf.multi_cell(0, 8, txt=erro.encode('latin-1', 'replace').decode('latin-1'))
-            pdf.ln(2)
-            
         try:
-            pdf.output(pdf_path)
-            messagebox.showinfo("Sucesso", f"Relatorio salvo com sucesso em:\n{pdf_path}")
+            with open(txt_path, 'w', encoding='utf-8') as f:
+                f.write(f"Total de segurados com divergências: {len(erros_dict)}\n")
+                f.write("="*100 + "\n\n")
+                
+                # Escreve os dados formatados em uma única linha por segurado
+                for (nome, cpf), lista_erros in erros_dict.items():
+                    detalhes = " | ".join(lista_erros)
+                    f.write(f"{nome};{cpf};{detalhes}\n")
+                    
+            messagebox.showinfo("Sucesso", f"Relatório salvo com sucesso em:\n{txt_path}")
         except Exception as e:
-            messagebox.showerror("Erro ao Salvar PDF", f"Não foi possível salvar o PDF.\n{str(e)}")
+            messagebox.showerror("Erro", f"Não foi possível salvar o arquivo:\n{str(e)}")
 
 if __name__ == "__main__":
     app = ComparadorApp()
