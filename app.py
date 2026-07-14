@@ -11,7 +11,7 @@ ctk.set_default_color_theme("green")
 class ComparadorApp(ctk.CTk):
     def __init__(self):
         super().__init__()
-        self.title("Comparador de Segurados v4.0")
+        self.title("Comparador de Segurados v5.0")
         self.geometry("500x440")
         self.resizable(False, False)
         
@@ -93,7 +93,7 @@ class ComparadorApp(ctk.CTk):
                 self.update_idletasks()
                 
                 nome = str(row.get('NOME DO SEGURADO', '')).strip()
-                cpf = str(row.get('CPF', '')).strip()
+                cpf_atual = str(row.get('CPF', '')).strip()
                 nasc = str(row.get('DATA DE NASCIMENTO', '')).strip()
                 matricula = str(row.get('MATRICULA', '')).strip()
                 certificado = str(row.get('CERTIFICADO', '')).strip()
@@ -101,30 +101,39 @@ class ComparadorApp(ctk.CTk):
                 if not nome:
                     continue
                 
-                # Lógica de busca de acordo com o modo selecionado
-                if modo == "EDUC":
-                    match = df_conferida[(df_conferida['NOME DO SEGURADO'].str.strip() == nome) & 
-                                         (df_conferida['CPF'].str.strip() == cpf)]
-                    cpf_relatorio = cpf
-                else: # Modo AP
-                    match = df_conferida[df_conferida['NOME DO SEGURADO'].str.strip() == nome]
-                    cpf_relatorio = "N/A (Modo AP)"
+                # BUSCA: Agora sempre tenta encontrar a pessoa apenas pelo NOME, em ambos os modos.
+                match = df_conferida[df_conferida['NOME DO SEGURADO'].str.strip() == nome]
+                
+                # Exibição do CPF no relatório final (educ mostra o cpf, ap omite)
+                cpf_relatorio = cpf_atual if modo == "EDUC" else "N/A (Modo AP)"
                 
                 if match.empty:
                     erros_dict[(nome, cpf_relatorio)] = ["NÃO ENCONTRADO NA PLANILHA CONFERIDA"]
                 else:
-                    # Pega a primeira ocorrência encontrada
+                    # Se encontrou o nome, pega os dados da planilha de conferência
                     row_conf = match.iloc[0]
                     inconsistencias = []
                     
-                    if nasc != str(row_conf.get('DATA DE NASCIMENTO', '')).strip():
-                        inconsistencias.append(f"NASCIMENTO (Atual: {nasc} -> Conf: {row_conf.get('DATA DE NASCIMENTO')})")
-                    
-                    if matricula != str(row_conf.get('MATRICULA', '')).strip():
-                        inconsistencias.append(f"MATRÍCULA (Atual: {matricula} -> Conf: {row_conf.get('MATRICULA')})")
+                    # 1. Checagem de Matrícula (Seu Concat Nome + Matrícula)
+                    matricula_conf = str(row_conf.get('MATRICULA', '')).strip()
+                    if matricula != matricula_conf:
+                        inconsistencias.append(f"MATRÍCULA (Atual: {matricula} -> Conf: {matricula_conf})")
                         
-                    if certificado != str(row_conf.get('CERTIFICADO', '')).strip():
-                        inconsistencias.append(f"CERTIFICADO (Atual: {certificado} -> Conf: {row_conf.get('CERTIFICADO')})")
+                    # 2. Checagem de Certificado (Seu Concat Nome + Certificado)
+                    certificado_conf = str(row_conf.get('CERTIFICADO', '')).strip()
+                    if certificado != certificado_conf:
+                        inconsistencias.append(f"CERTIFICADO (Atual: {certificado} -> Conf: {certificado_conf})")
+                        
+                    # 3. Checagem de Nascimento
+                    nasc_conf = str(row_conf.get('DATA DE NASCIMENTO', '')).strip()
+                    if nasc != nasc_conf:
+                        inconsistencias.append(f"NASCIMENTO (Atual: {nasc} -> Conf: {nasc_conf})")
+                    
+                    # 4. Checagem de CPF (Exclusivo do modo EDUC)
+                    if modo == "EDUC":
+                        cpf_conf = str(row_conf.get('CPF', '')).strip()
+                        if cpf_atual != cpf_conf:
+                            inconsistencias.append(f"CPF (Atual: {cpf_atual} -> Conf: {cpf_conf})")
                         
                     if inconsistencias:
                         erros_dict[(nome, cpf_relatorio)] = inconsistencias
@@ -139,7 +148,7 @@ class ComparadorApp(ctk.CTk):
 
     def gerar_planilha(self, erros_dict):
         if not erros_dict:
-            messagebox.showinfo("Sucesso", "Nenhum erro encontrado!")
+            messagebox.showinfo("Sucesso", "Nenhum erro encontrado! As planilhas batem perfeitamente.")
             return
 
         planilha_path = filedialog.asksaveasfilename(
