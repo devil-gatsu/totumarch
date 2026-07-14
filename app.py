@@ -4,62 +4,63 @@ import pandas as pd
 import threading
 import os
 
-# Layout moderno e estruturado
+# Layout Minimalista
 ctk.set_appearance_mode("dark")
 ctk.set_default_color_theme("green")
 
 class ComparadorApp(ctk.CTk):
     def __init__(self):
         super().__init__()
-        self.title("Comparador de Segurados v3.0")
-        self.geometry("750x550")
+        self.title("Comparador de Segurados v4.0")
+        self.geometry("500x440")
         self.resizable(False, False)
         
-        # Container principal com bordas arredondadas
-        self.main_frame = ctk.CTkFrame(self, corner_radius=15)
-        self.main_frame.pack(pady=20, padx=20, fill="both", expand=True)
+        self.main_frame = ctk.CTkFrame(self, corner_radius=10)
+        self.main_frame.pack(pady=15, padx=15, fill="both", expand=True)
 
-        self.lbl_title = ctk.CTkLabel(self.main_frame, text="🔍 Verificador de Inconsistências", font=("Roboto", 24, "bold"))
-        self.lbl_title.pack(pady=(20, 20))
+        self.lbl_title = ctk.CTkLabel(self.main_frame, text="Verificador de Inconsistências", font=("Roboto", 20, "bold"))
+        self.lbl_title.pack(pady=(15, 10))
         
-        # Área de seleção de arquivos (Frame interno)
-        self.frame_files = ctk.CTkFrame(self.main_frame, fg_color="transparent")
-        self.frame_files.pack(pady=10, fill="x", padx=20)
+        # Seletor de Modo (AP ou EDUC)
+        self.modo_var = ctk.StringVar(value="EDUC")
+        self.seg_modo = ctk.CTkSegmentedButton(self.main_frame, values=["AP", "EDUC"], variable=self.modo_var, font=("Roboto", 12))
+        self.seg_modo.pack(pady=(0, 15))
+
+        # Botões de Arquivo
+        self.btn_atual = ctk.CTkButton(self.main_frame, text="📂 1. Planilha Atual", command=self.selecionar_atual, height=35)
+        self.btn_atual.pack(pady=(5, 2))
+        self.lbl_atual = ctk.CTkLabel(self.main_frame, text="Nenhum arquivo", text_color="gray", font=("Roboto", 11))
+        self.lbl_atual.pack(pady=(0, 10))
         
-        self.btn_atual = ctk.CTkButton(self.frame_files, text="📂 1. Planilha Atual", command=self.selecionar_atual, width=200, height=45, font=("Roboto", 14, "bold"))
-        self.btn_atual.grid(row=0, column=0, padx=10, pady=15)
-        self.lbl_atual = ctk.CTkLabel(self.frame_files, text="Nenhum arquivo...", text_color="gray", width=350, anchor="w", font=("Roboto", 12))
-        self.lbl_atual.grid(row=0, column=1, padx=10, pady=15)
-        
-        self.btn_conferido = ctk.CTkButton(self.frame_files, text="📂 2. Planilha a Conferir", command=self.selecionar_conferida, width=200, height=45, font=("Roboto", 14, "bold"))
-        self.btn_conferido.grid(row=1, column=0, padx=10, pady=15)
-        self.lbl_conferido = ctk.CTkLabel(self.frame_files, text="Nenhum arquivo...", text_color="gray", width=350, anchor="w", font=("Roboto", 12))
-        self.lbl_conferido.grid(row=1, column=1, padx=10, pady=15)
+        self.btn_conferido = ctk.CTkButton(self.main_frame, text="📂 2. Planilha a Conferir", command=self.selecionar_conferida, height=35)
+        self.btn_conferido.pack(pady=(5, 2))
+        self.lbl_conferido = ctk.CTkLabel(self.main_frame, text="Nenhum arquivo", text_color="gray", font=("Roboto", 11))
+        self.lbl_conferido.pack(pady=(0, 10))
 
         # Barra de Progresso
-        self.progress = ctk.CTkProgressBar(self.main_frame, width=550, height=15)
-        self.progress.pack(pady=20)
+        self.progress = ctk.CTkProgressBar(self.main_frame, width=400, height=10)
+        self.progress.pack(pady=15)
         self.progress.set(0)
         
-        # Botão Executar atualizado
-        self.btn_executar = ctk.CTkButton(self.main_frame, text="⚡ Verificar e Gerar Planilha", command=self.iniciar_thread_verificacao, 
-                                          fg_color="#006400", hover_color="#004d00", font=("Roboto", 16, "bold"), height=50)
-        self.btn_executar.pack(pady=10, padx=20, fill="x")
+        # Botão Executar
+        self.btn_executar = ctk.CTkButton(self.main_frame, text="⚡ Gerar Planilha", command=self.iniciar_thread_verificacao, 
+                                          fg_color="#006400", hover_color="#004d00", font=("Roboto", 14, "bold"), height=40)
+        self.btn_executar.pack(pady=(0, 10), padx=30, fill="x")
 
         # Rodapé
-        self.lbl_footer = ctk.CTkLabel(self, text="Criado por Matheus Carvalho", font=("Roboto", 12, "italic"), text_color="gray")
-        self.lbl_footer.pack(side="bottom", pady=10)
+        self.lbl_footer = ctk.CTkLabel(self, text="Criado por Matheus Carvalho", font=("Roboto", 10, "italic"), text_color="gray")
+        self.lbl_footer.pack(side="bottom", pady=5)
         
         self.arquivo_atual = ""
         self.arquivo_conferido = ""
 
     def selecionar_atual(self):
-        self.arquivo_atual = filedialog.askopenfilename(filetypes=[("Arquivos de Texto e CSV", "*.txt *.csv *.TXT")])
+        self.arquivo_atual = filedialog.askopenfilename(filetypes=[("Arquivos", "*.txt *.csv *.TXT")])
         if self.arquivo_atual:
             self.lbl_atual.configure(text=os.path.basename(self.arquivo_atual), text_color="white")
 
     def selecionar_conferida(self):
-        self.arquivo_conferido = filedialog.askopenfilename(filetypes=[("Arquivos de Texto e CSV", "*.txt *.csv *.TXT")])
+        self.arquivo_conferido = filedialog.askopenfilename(filetypes=[("Arquivos", "*.txt *.csv *.TXT")])
         if self.arquivo_conferido:
             self.lbl_conferido.configure(text=os.path.basename(self.arquivo_conferido), text_color="white")
 
@@ -71,7 +72,7 @@ class ComparadorApp(ctk.CTk):
 
     def iniciar_thread_verificacao(self):
         if not self.arquivo_atual or not self.arquivo_conferido:
-            messagebox.showwarning("Aviso", "Por favor, selecione os dois arquivos antes de continuar.")
+            messagebox.showwarning("Aviso", "Selecione os dois arquivos.")
             return
         
         self.btn_executar.configure(state="disabled", text="Processando...")
@@ -85,6 +86,7 @@ class ComparadorApp(ctk.CTk):
             
             erros_dict = {}
             total_linhas = len(df_atual)
+            modo = self.modo_var.get()
             
             for idx, row in df_atual.iterrows():
                 self.progress.set((idx + 1) / total_linhas)
@@ -96,15 +98,22 @@ class ComparadorApp(ctk.CTk):
                 matricula = str(row.get('MATRICULA', '')).strip()
                 certificado = str(row.get('CERTIFICADO', '')).strip()
                 
-                if not nome and not cpf:
+                if not nome:
                     continue
                 
-                match = df_conferida[(df_conferida['NOME DO SEGURADO'].str.strip() == nome) & 
-                                     (df_conferida['CPF'].str.strip() == cpf)]
+                # Lógica de busca de acordo com o modo selecionado
+                if modo == "EDUC":
+                    match = df_conferida[(df_conferida['NOME DO SEGURADO'].str.strip() == nome) & 
+                                         (df_conferida['CPF'].str.strip() == cpf)]
+                    cpf_relatorio = cpf
+                else: # Modo AP
+                    match = df_conferida[df_conferida['NOME DO SEGURADO'].str.strip() == nome]
+                    cpf_relatorio = "N/A (Modo AP)"
                 
                 if match.empty:
-                    erros_dict[(nome, cpf)] = ["NÃO ENCONTRADO NA PLANILHA CONFERIDA"]
+                    erros_dict[(nome, cpf_relatorio)] = ["NÃO ENCONTRADO NA PLANILHA CONFERIDA"]
                 else:
+                    # Pega a primeira ocorrência encontrada
                     row_conf = match.iloc[0]
                     inconsistencias = []
                     
@@ -118,22 +127,21 @@ class ComparadorApp(ctk.CTk):
                         inconsistencias.append(f"CERTIFICADO (Atual: {certificado} -> Conf: {row_conf.get('CERTIFICADO')})")
                         
                     if inconsistencias:
-                        erros_dict[(nome, cpf)] = inconsistencias
+                        erros_dict[(nome, cpf_relatorio)] = inconsistencias
 
             self.gerar_planilha(erros_dict)
             
         except Exception as e:
-            messagebox.showerror("Erro de Processamento", f"Ocorreu um erro ao ler os arquivos:\n{str(e)}")
+            messagebox.showerror("Erro", f"Erro ao processar:\n{str(e)}")
         finally:
-            self.btn_executar.configure(state="normal", text="⚡ Verificar e Gerar Planilha")
+            self.btn_executar.configure(state="normal", text="⚡ Gerar Planilha")
             self.progress.set(1)
 
     def gerar_planilha(self, erros_dict):
         if not erros_dict:
-            messagebox.showinfo("Sucesso", "Nenhum erro encontrado! Os arquivos batem perfeitamente.")
+            messagebox.showinfo("Sucesso", "Nenhum erro encontrado!")
             return
 
-        # Agora salva como .xlsx do Excel ou .csv
         planilha_path = filedialog.asksaveasfilename(
             defaultextension=".xlsx", 
             filetypes=[("Planilha do Excel", "*.xlsx"), ("Arquivo CSV", "*.csv")], 
@@ -144,27 +152,23 @@ class ComparadorApp(ctk.CTk):
             return
         
         try:
-            # Transforma as informações para o formato de planilha
             dados_planilha = []
-            for (nome, cpf), lista_erros in erros_dict.items():
-                linha = {"Nome do Segurado": nome, "CPF": cpf}
-                # Adiciona uma nova coluna para cada erro daquela pessoa
+            for (nome, cpf_relatorio), lista_erros in erros_dict.items():
+                linha = {"Nome do Segurado": nome, "CPF": cpf_relatorio}
                 for i, erro in enumerate(lista_erros):
                     linha[f"Erro {i+1}"] = erro
                 dados_planilha.append(linha)
                 
-            # Cria o DataFrame (tabela) com os dados
             df_relatorio = pd.DataFrame(dados_planilha)
             
-            # Exporta para o arquivo escolhido
             if planilha_path.endswith('.csv'):
                 df_relatorio.to_csv(planilha_path, index=False, sep=';', encoding='utf-8-sig')
             else:
                 df_relatorio.to_excel(planilha_path, index=False)
                 
-            messagebox.showinfo("Sucesso", f"Planilha de inconsistências salva com sucesso em:\n{planilha_path}")
+            messagebox.showinfo("Sucesso", "Planilha salva com sucesso!")
         except Exception as e:
-            messagebox.showerror("Erro", f"Não foi possível salvar a planilha:\n{str(e)}")
+            messagebox.showerror("Erro", f"Erro ao salvar:\n{str(e)}")
 
 if __name__ == "__main__":
     app = ComparadorApp()
