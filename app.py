@@ -2,300 +2,364 @@ import customtkinter as ctk
 from tkinter import filedialog, messagebox
 import pandas as pd
 import threading
+import os
+import re
 
-# Layout Minimalista Moderno
+# ==========================================
+# CONFIGURAÇÃO DE DESIGN DELUXE & SLIM
+# ==========================================
 ctk.set_appearance_mode("dark")
-ctk.set_default_color_theme("green")
+ctk.set_default_color_theme("dark-blue") 
 
-class ComparadorApp(ctk.CTk):
+class HubUtilitarios(ctk.CTk):
     def __init__(self):
         super().__init__()
-        self.title("Comparador de Segurados v6.0")
-        self.geometry("600x700")
+        self.title("Hub Analítico de Segurados")
+        self.geometry("500x550")
         self.resizable(False, False)
         
-        # Variáveis de arquivos
-        self.arq_ap_atual = []
-        self.arq_ap_conf = []
-        self.arq_educ_atual = []
-        self.arq_educ_conf = []
+        self.tabview = ctk.CTkTabview(self, corner_radius=8, border_width=0)
+        self.tabview.pack(padx=15, pady=10, fill="both", expand=True)
         
-        self.main_frame = ctk.CTkFrame(self, corner_radius=10)
-        self.main_frame.pack(pady=15, padx=15, fill="both", expand=True)
-
-        self.lbl_title = ctk.CTkLabel(self.main_frame, text="Verificador de Inconsistências", font=("Roboto", 20, "bold"))
-        self.lbl_title.pack(pady=(15, 10))
+        self.tab_auditor = self.tabview.add("🔍 Auditoria de Divergências")
+        self.tab_mapeador = self.tabview.add("📊 Mapeador Analítico (PROCV)")
         
-        # Seletor de Modo
-        self.modo_var = ctk.StringVar(value="EDUC")
-        self.seg_modo = ctk.CTkSegmentedButton(self.main_frame, values=["AP", "EDUC", "AMBOS"], 
-                                               variable=self.modo_var, font=("Roboto", 12), command=self.mudar_modo)
-        self.seg_modo.pack(pady=(0, 15))
+        self.configurar_auditor()
+        self.configurar_mapeador()
 
-        # --- BLOCO AP ---
-        self.frame_ap = ctk.CTkFrame(self.main_frame, fg_color="#1e3d59", corner_radius=8)
-        self.lbl_ap_title = ctk.CTkLabel(self.frame_ap, text="Arquivos AP", font=("Roboto", 14, "bold"), text_color="white")
-        self.lbl_ap_title.pack(pady=(5, 0))
-        
-        self.btn_ap_atual = ctk.CTkButton(self.frame_ap, text="📂 1. AP: Planilha Atual", command=lambda: self.selecionar_arq('ap_atual'), width=250)
-        self.btn_ap_atual.pack(pady=(10, 2))
-        self.lbl_ap_atual = ctk.CTkLabel(self.frame_ap, text="Nenhum arquivo", text_color="lightgray", font=("Roboto", 11))
-        self.lbl_ap_atual.pack(pady=(0, 5))
-        
-        self.btn_ap_conf = ctk.CTkButton(self.frame_ap, text="📂 2. AP: Planilha Anterior", command=lambda: self.selecionar_arq('ap_conf'), width=250)
-        self.btn_ap_conf.pack(pady=(5, 2))
-        self.lbl_ap_conf = ctk.CTkLabel(self.frame_ap, text="Nenhum arquivo", text_color="lightgray", font=("Roboto", 11))
-        self.lbl_ap_conf.pack(pady=(0, 10))
-
-        # --- BLOCO EDUC ---
-        self.frame_educ = ctk.CTkFrame(self.main_frame, fg_color="#432c54", corner_radius=8)
-        self.lbl_educ_title = ctk.CTkLabel(self.frame_educ, text="Arquivos EDUC", font=("Roboto", 14, "bold"), text_color="white")
-        self.lbl_educ_title.pack(pady=(5, 0))
-        
-        self.btn_educ_atual = ctk.CTkButton(self.frame_educ, text="📂 1. EDUC: Planilha Atual", command=lambda: self.selecionar_arq('educ_atual'), width=250)
-        self.btn_educ_atual.pack(pady=(10, 2))
-        self.lbl_educ_atual = ctk.CTkLabel(self.frame_educ, text="Nenhum arquivo", text_color="lightgray", font=("Roboto", 11))
-        self.lbl_educ_atual.pack(pady=(0, 5))
-        
-        self.btn_educ_conf = ctk.CTkButton(self.frame_educ, text="📂 2. EDUC: Planilha Anterior", command=lambda: self.selecionar_arq('educ_conf'), width=250)
-        self.btn_educ_conf.pack(pady=(5, 2))
-        self.lbl_educ_conf = ctk.CTkLabel(self.frame_educ, text="Nenhum arquivo", text_color="lightgray", font=("Roboto", 11))
-        self.lbl_educ_conf.pack(pady=(0, 10))
-
-        # Exibir bloco inicial
-        self.mudar_modo("EDUC")
-
-        # Input de Erros do Sistema
-        self.entry_erros = ctk.CTkEntry(self.main_frame, placeholder_text="Qtd. Erros no Sistema (Opcional)", width=220, justify="center")
-        self.entry_erros.pack(pady=(15, 5))
-
-        # Barra de Progresso
-        self.progress = ctk.CTkProgressBar(self.main_frame, width=450, height=10)
-        self.progress.pack(pady=10)
-        self.progress.set(0)
-        
-        # Botão Executar
-        self.btn_executar = ctk.CTkButton(self.main_frame, text="⚡ Processar e Gerar Relatório", command=self.iniciar_thread_verificacao, 
-                                          fg_color="#006400", hover_color="#004d00", font=("Roboto", 14, "bold"), height=40)
-        self.btn_executar.pack(pady=10, padx=30, fill="x")
-
-        # Mini Relatório
-        self.frame_relatorio = ctk.CTkFrame(self.main_frame, fg_color="#2b2b2b", corner_radius=5)
-        self.frame_relatorio.pack(pady=(0, 10), padx=20, fill="x")
-        self.lbl_relatorio = ctk.CTkLabel(self.frame_relatorio, text="Aguardando processamento...", font=("Roboto", 12), text_color="white", justify="center")
-        self.lbl_relatorio.pack(pady=10, padx=10)
-
-        # Rodapé
-        self.lbl_footer = ctk.CTkLabel(self, text="Criado por Matheus Carvalho", font=("Roboto", 10, "italic"), text_color="gray")
+        self.lbl_footer = ctk.CTkLabel(self, text="Desenvolvido por Matheus Carvalho", font=("Segoe UI", 10, "italic"), text_color="#555555")
         self.lbl_footer.pack(side="bottom", pady=5)
 
-    def mudar_modo(self, modo):
-        if modo == "AP":
-            self.frame_educ.pack_forget()
-            self.frame_ap.pack(pady=5, padx=20, fill="x")
-        elif modo == "EDUC":
-            self.frame_ap.pack_forget()
-            self.frame_educ.pack(pady=5, padx=20, fill="x")
-        elif modo == "AMBOS":
-            self.frame_ap.pack(pady=5, padx=20, fill="x")
-            self.frame_educ.pack(pady=5, padx=20, fill="x")
+    # ==========================================
+    # ABA 1: AUDITORIA (AP / EDUC / AMBOS)
+    # ==========================================
+    def configurar_auditor(self):
+        self.arq_atuais = []
+        self.arq_anteriores = []
+        
+        self.frame_uploads = ctk.CTkFrame(self.tab_auditor, fg_color="transparent")
+        self.frame_uploads.pack(pady=20, fill="x")
 
-    def selecionar_arq(self, tipo):
-        arquivos = filedialog.askopenfilenames(filetypes=[("Arquivos", "*.txt *.csv *.TXT")])
+        self.btn_atuais = ctk.CTkButton(self.frame_uploads, text="📁 Selecionar Planilhas ATUAIS", 
+                                        command=self.selecionar_atuais, width=300, height=35, 
+                                        fg_color="#2c2c2e", hover_color="#3a3a3c", border_width=1, border_color="#444")
+        self.btn_atuais.pack(pady=5)
+        self.lbl_atuais = ctk.CTkLabel(self.frame_uploads, text="Nenhum arquivo selecionado", text_color="#888888", font=("Segoe UI", 11))
+        self.lbl_atuais.pack(pady=(0, 10))
+
+        self.btn_anteriores = ctk.CTkButton(self.frame_uploads, text="📁 Selecionar Planilhas ANTERIORES", 
+                                            command=self.selecionar_anteriores, width=300, height=35, 
+                                            fg_color="#2c2c2e", hover_color="#3a3a3c", border_width=1, border_color="#444")
+        self.btn_anteriores.pack(pady=5)
+        self.lbl_anteriores = ctk.CTkLabel(self.frame_uploads, text="Nenhum arquivo selecionado", text_color="#888888", font=("Segoe UI", 11))
+        self.lbl_anteriores.pack()
+
+        ctk.CTkFrame(self.tab_auditor, height=1, fg_color="#333").pack(fill="x", padx=40, pady=15)
+
+        self.entry_erros = ctk.CTkEntry(self.tab_auditor, placeholder_text="Qtd. de Erros no Sistema (Opcional)", 
+                                        width=250, justify="center", border_width=1, fg_color="#1c1c1e")
+        self.entry_erros.pack(pady=10)
+
+        self.btn_exec_auditor = ctk.CTkButton(self.tab_auditor, text="⚡ Iniciar Auditoria", command=self.iniciar_auditoria, 
+                                              fg_color="#005A9E", hover_color="#004070", font=("Segoe UI", 13, "bold"), height=40, width=250)
+        self.btn_exec_auditor.pack(pady=10)
+
+        self.progress_auditor = ctk.CTkProgressBar(self.tab_auditor, width=350, height=4, progress_color="#005A9E")
+        self.progress_auditor.pack(pady=10)
+        self.progress_auditor.set(0)
+
+        self.lbl_relatorio = ctk.CTkLabel(self.tab_auditor, text="", font=("Segoe UI", 12), text_color="#AAAAAA", justify="center")
+        self.lbl_relatorio.pack(pady=5)
+
+    def selecionar_atuais(self):
+        arquivos = filedialog.askopenfilenames(filetypes=[("Arquivos", "*.txt *.csv *.TXT *.xlsx")])
         if arquivos:
-            texto = f"{len(arquivos)} arquivo(s) selecionado(s)"
-            if tipo == 'ap_atual':
-                self.arq_ap_atual = arquivos
-                self.lbl_ap_atual.configure(text=texto, text_color="white")
-            elif tipo == 'ap_conf':
-                self.arq_ap_conf = arquivos
-                self.lbl_ap_conf.configure(text=texto, text_color="white")
-            elif tipo == 'educ_atual':
-                self.arq_educ_atual = arquivos
-                self.lbl_educ_atual.configure(text=texto, text_color="white")
-            elif tipo == 'educ_conf':
-                self.arq_educ_conf = arquivos
-                self.lbl_educ_conf.configure(text=texto, text_color="white")
+            self.arq_atuais = arquivos
+            self.lbl_atuais.configure(text=f"{len(arquivos)} arquivo(s) carregado(s)", text_color="#00FF7F")
 
-    def ler_arquivo(self, caminho):
+    def selecionar_anteriores(self):
+        arquivos = filedialog.askopenfilenames(filetypes=[("Arquivos", "*.txt *.csv *.TXT *.xlsx")])
+        if arquivos:
+            self.arq_anteriores = arquivos
+            self.lbl_anteriores.configure(text=f"{len(arquivos)} arquivo(s) carregado(s)", text_color="#00FF7F")
+
+    def iniciar_auditoria(self):
+        if not self.arq_atuais or not self.arq_anteriores:
+            messagebox.showwarning("Aviso", "Por favor, carregue os arquivos.")
+            return
+        self.btn_exec_auditor.configure(state="disabled")
+        self.progress_auditor.set(0.1)
+        self.lbl_relatorio.configure(text="Analisando cruzamentos...", text_color="#F1C40F")
+        threading.Thread(target=self.processar_auditoria).start()
+
+    def processar_auditoria(self):
         try:
-            return pd.read_csv(caminho, sep=';', dtype=str, encoding='utf-8-sig').fillna("")
-        except UnicodeDecodeError:
-            return pd.read_csv(caminho, sep=';', dtype=str, encoding='latin-1').fillna("")
+            df_atual = self.compilar_dados(self.arq_atuais)
+            df_conf = self.compilar_dados(self.arq_anteriores)
+            self.progress_auditor.set(0.4)
+            
+            old_data = {'AP': {}, 'EDUC': {}}
+            
+            for _, row in df_conf.iterrows():
+                tipo = row['TIPO']
+                nome = str(row.get('NOME DO SEGURADO', '')).strip().upper()
+                if not nome: continue
+                
+                if nome not in old_data[tipo]:
+                    old_data[tipo][nome] = {'MAT': [], 'CERT': [], 'CPF': [], 'NASC': []}
+                
+                old_data[tipo][nome]['MAT'].append(str(row.get('MATRICULA', '')).strip().upper())
+                old_data[tipo][nome]['CERT'].append(str(row.get('CERTIFICADO', '')).strip().upper())
+                old_data[tipo][nome]['CPF'].append(str(row.get('CPF', '')).strip().upper())
+                old_data[tipo][nome]['NASC'].append(str(row.get('DATA DE NASCIMENTO', '')).strip().upper())
 
-    def compilar_dados(self, arquivos):
-        lista_dfs = []
-        for caminho in arquivos:
-            lista_dfs.append(self.ler_arquivo(caminho))
-        return pd.concat(lista_dfs, ignore_index=True) if lista_dfs else pd.DataFrame()
-
-    def iniciar_thread_verificacao(self):
-        self.btn_executar.configure(state="disabled", text="Processando...")
-        self.lbl_relatorio.configure(text="Analisando dados...", text_color="yellow")
-        self.progress.set(0)
-        threading.Thread(target=self.processar_planilhas).start()
-
-    def processar_planilhas(self):
-        try:
-            modo = self.modo_var.get()
+            self.progress_auditor.set(0.6)
+            
             erros_totais = {}
             cont_ap = 0
             cont_educ = 0
+            total_linhas = len(df_atual)
 
-            # Processamento AP
-            if modo in ["AP", "AMBOS"] and self.arq_ap_atual and self.arq_ap_conf:
-                df_atual_ap = self.compilar_dados(self.arq_ap_atual)
-                df_conf_ap = self.compilar_dados(self.arq_ap_conf)
-                erros_ap, qtd = self.analisar_bloco(df_atual_ap, df_conf_ap, "AP")
-                erros_totais.update(erros_ap)
-                cont_ap = qtd
+            for idx, row in df_atual.iterrows():
+                if idx % 50 == 0:
+                    self.progress_auditor.set(0.6 + (0.3 * (idx / total_linhas)))
+                    self.update_idletasks()
 
-            # Processamento EDUC
-            if modo in ["EDUC", "AMBOS"] and self.arq_educ_atual and self.arq_educ_conf:
-                df_atual_educ = self.compilar_dados(self.arq_educ_atual)
-                df_conf_educ = self.compilar_dados(self.arq_educ_conf)
-                erros_educ, qtd = self.analisar_bloco(df_atual_educ, df_conf_educ, "EDUC")
-                erros_totais.update(erros_educ)
-                cont_educ = qtd
+                tipo = row['TIPO']
+                nome = str(row.get('NOME DO SEGURADO', '')).strip().upper()
+                if not nome: continue
 
-            self.atualizar_relatorio_interface(cont_ap, cont_educ, modo)
-            self.gerar_planilha(erros_totais)
-            
-        except Exception as e:
-            messagebox.showerror("Erro", f"Erro ao processar:\n{str(e)}")
-            self.lbl_relatorio.configure(text="Erro no processamento.", text_color="red")
-        finally:
-            self.btn_executar.configure(state="normal", text="⚡ Processar e Gerar Relatório")
-            self.progress.set(1)
+                cpf_atual = str(row.get('CPF', '')).strip().upper()
+                mat_atual = str(row.get('MATRICULA', '')).strip().upper()
+                cert_atual = str(row.get('CERTIFICADO', '')).strip().upper()
+                nasc_atual = str(row.get('DATA DE NASCIMENTO', '')).strip().upper()
 
-    def analisar_bloco(self, df_atual, df_conf, tipo_regra):
-        erros_dict = {}
-        cont_erros = 0
-        total_linhas = len(df_atual)
+                inconsistencias = []
 
-        for idx, row in df_atual.iterrows():
-            self.progress.set((idx + 1) / total_linhas)
-            self.update_idletasks()
-            
-            nome = str(row.get('NOME DO SEGURADO', '')).strip()
-            if not nome: continue
-
-            cpf_atual = str(row.get('CPF', '')).strip()
-            nasc_atual = str(row.get('DATA DE NASCIMENTO', '')).strip()
-            mat_atual = str(row.get('MATRICULA', '')).strip()
-            cert_atual = str(row.get('CERTIFICADO', '')).strip()
-            
-            # Encontra todas as linhas com esse nome na planilha de conferência
-            matches = df_conf[df_conf['NOME DO SEGURADO'].str.strip() == nome]
-            cpf_relatorio = cpf_atual if tipo_regra == "EDUC" else "N/A (Modo AP)"
-            
-            if matches.empty:
-                erros_dict[(nome, cpf_relatorio)] = [f"[{tipo_regra}] NÃO ENCONTRADO NA PLANILHA ANTERIOR"]
-                cont_erros += 1
-                continue
-            
-            # LÓGICA INTELIGENTE PARA NOMES REPETIDOS (Filhos da mesma pessoa no EDUC)
-            if len(matches) == 1:
-                row_conf = matches.iloc[0]
-            else:
-                # Se achou mais de um, usa a Matrícula para descobrir qual é o filho correto
-                match_matricula = matches[matches['MATRICULA'].str.strip() == mat_atual]
-                if not match_matricula.empty:
-                    row_conf = match_matricula.iloc[0]
+                if nome not in old_data[tipo]:
+                    inconsistencias.append("NÃO ENCONTRADO NA PLANILHA ANTERIOR")
                 else:
-                    # Se não bateu a matrícula, tenta pelo certificado
-                    match_cert = matches[matches['CERTIFICADO'].str.strip() == cert_atual]
-                    if not match_cert.empty:
-                        row_conf = match_cert.iloc[0]
-                    else:
-                        # Se tudo falhar, pega o primeiro para acusar a divergência geral
-                        row_conf = matches.iloc[0]
-
-            nome_conf = str(row_conf.get('NOME DO SEGURADO', '')).strip()
-            cpf_conf = str(row_conf.get('CPF', '')).strip()
-            nasc_conf = str(row_conf.get('DATA DE NASCIMENTO', '')).strip()
-            mat_conf = str(row_conf.get('MATRICULA', '')).strip()
-            cert_conf = str(row_conf.get('CERTIFICADO', '')).strip()
-            
-            inconsistencias = []
-            
-            # Comparações (Simulando seus Concats)
-            if mat_atual != mat_conf:
-                inconsistencias.append(f"MATRÍCULA (Atual: {mat_atual} -> Conf: {mat_conf})")
-            if cert_atual != cert_conf:
-                inconsistencias.append(f"CERTIFICADO (Atual: {cert_atual} -> Conf: {cert_conf})")
-            if nasc_atual != nasc_conf:
-                inconsistencias.append(f"NASCIMENTO (Atual: {nasc_atual} -> Conf: {nasc_conf})")
-                
-            if tipo_regra == "EDUC":
-                if cpf_atual != cpf_conf:
-                    inconsistencias.append(f"CPF (Atual: {cpf_atual} -> Conf: {cpf_conf})")
+                    if mat_atual not in old_data[tipo][nome]['MAT']:
+                        inconsistencias.append(f"MATRÍCULA (Atual: {mat_atual} | Antigas: {', '.join(set(old_data[tipo][nome]['MAT']))})")
+                    if cert_atual not in old_data[tipo][nome]['CERT']:
+                        inconsistencias.append(f"CERTIFICADO (Atual: {cert_atual} | Antigos: {', '.join(set(old_data[tipo][nome]['CERT']))})")
+                    if nasc_atual not in old_data[tipo][nome]['NASC']:
+                        inconsistencias.append(f"NASCIMENTO (Atual: {nasc_atual} | Antigos: {', '.join(set(old_data[tipo][nome]['NASC']))})")
                     
-            if inconsistencias:
-                # Adiciona uma tag indicando a origem (AP ou EDUC)
-                inconsistencias = [f"[{tipo_regra}] " + erro for erro in inconsistencias]
-                erros_dict[(nome, cpf_relatorio)] = inconsistencias
-                cont_erros += 1
+                    # Retornado ao padrão: Apenas EDUC valida o CPF
+                    if tipo == "EDUC":
+                        if cpf_atual not in old_data[tipo][nome]['CPF']:
+                            inconsistencias.append(f"CPF (Atual: {cpf_atual} | Antigos: {', '.join(set(old_data[tipo][nome]['CPF']))})")
 
-        return erros_dict, cont_erros
+                if inconsistencias:
+                    inconsistencias = [f"[{tipo}] {erro}" for erro in inconsistencias]
+                    nome_formatado = str(row.get('NOME DO SEGURADO', '')).strip()
+                    # No relatório, o CPF é omitido se for AP, pois não é validado
+                    cpf_relatorio = str(row.get('CPF', '')).strip() if tipo == "EDUC" else "N/A (Modo AP)"
+                    erros_totais[(nome_formatado, cpf_relatorio)] = inconsistencias
+                    
+                    if tipo == "AP": cont_ap += 1
+                    else: cont_educ += 1
 
-    def atualizar_relatorio_interface(self, ap, educ, modo):
-        total_encontrado = ap + educ
+            self.progress_auditor.set(1.0)
+            self.atualizar_interface_relatorio(cont_ap, cont_educ)
+            self.gerar_planilha_auditoria(erros_totais)
+
+        except Exception as e:
+            messagebox.showerror("Erro", f"Falha na auditoria:\n{str(e)}")
+            self.lbl_relatorio.configure(text="Erro crítico no processamento.", text_color="#FF4D4D")
+        finally:
+            self.btn_exec_auditor.configure(state="normal")
+            self.progress_auditor.set(0)
+
+    def atualizar_interface_relatorio(self, ap, educ):
+        total = ap + educ
         esperado_str = self.entry_erros.get().strip()
         
-        texto_base = ""
-        if modo == "AP":
-            texto_base = f"Total Identificado (AP): {ap}"
-        elif modo == "EDUC":
-            texto_base = f"Total Identificado (EDUC): {educ}"
-        else:
-            texto_base = f"AP: {ap} | EDUC: {educ} | Total Geral: {total_encontrado}"
-            
-        cor_texto = "#00FF00" # Verde
-        
+        texto = f"Resultados: AP ({ap}) | EDUC ({educ}) | Total Geral ({total})"
+        cor = "#FFFFFF"
+
         if esperado_str.isdigit():
             esperado = int(esperado_str)
-            if total_encontrado == esperado:
-                texto_base += f"\nSistema ({esperado}) -> ✅ BATEU PERFEITAMENTE!"
+            if total == esperado:
+                texto += f"\n\nSistema acusou {esperado} -> ✅ BATEU EXATAMENTE!"
+                cor = "#00FF7F"
             else:
-                texto_base += f"\nSistema ({esperado}) -> ❌ DIVERGIU!"
-                cor_texto = "#FF4500" # Vermelho
-                
-        self.lbl_relatorio.configure(text=texto_base, text_color=cor_texto)
+                texto += f"\n\nSistema acusou {esperado} -> ❌ HÁ DIVERGÊNCIA!"
+                cor = "#FF4D4D"
 
-    def gerar_planilha(self, erros_dict):
+        self.lbl_relatorio.configure(text=texto, text_color=cor)
+
+    def gerar_planilha_auditoria(self, erros_dict):
         if not erros_dict:
-            messagebox.showinfo("Sucesso", "Nenhum erro encontrado! As planilhas batem perfeitamente.")
+            messagebox.showinfo("Sucesso", "Nenhuma divergência encontrada! Os dados estão perfeitos.")
             return
 
-        planilha_path = filedialog.asksaveasfilename(
-            defaultextension=".xlsx", 
-            filetypes=[("Planilha do Excel", "*.xlsx"), ("Arquivo CSV", "*.csv")], 
-            initialfile="Inconsistencias.xlsx"
-        )
-        
-        if not planilha_path:
-            return
+        path = filedialog.asksaveasfilename(defaultextension=".xlsx", filetypes=[("Excel", "*.xlsx"), ("CSV", "*.csv")], initialfile="Relatorio_Auditoria.xlsx")
+        if not path: return
         
         try:
-            dados_planilha = []
-            for (nome, cpf_relatorio), lista_erros in erros_dict.items():
-                linha = {"Nome do Segurado": nome, "CPF": cpf_relatorio}
+            dados = []
+            for (nome, cpf), lista_erros in erros_dict.items():
+                linha = {"Nome do Segurado": nome, "CPF": cpf}
                 for i, erro in enumerate(lista_erros):
                     linha[f"Erro {i+1}"] = erro
-                dados_planilha.append(linha)
+                dados.append(linha)
                 
-            df_relatorio = pd.DataFrame(dados_planilha)
-            
-            if planilha_path.endswith('.csv'):
-                df_relatorio.to_csv(planilha_path, index=False, sep=';', encoding='utf-8-sig')
-            else:
-                df_relatorio.to_excel(planilha_path, index=False)
-                
-            messagebox.showinfo("Sucesso", "Planilha salva com sucesso!")
+            df = pd.DataFrame(dados)
+            if path.endswith('.csv'): df.to_csv(path, index=False, sep=';', encoding='utf-8-sig')
+            else: df.to_excel(path, index=False)
+            messagebox.showinfo("Exportado", "Relatório de divergências gerado com sucesso!")
         except Exception as e:
-            messagebox.showerror("Erro", f"Erro ao salvar:\n{str(e)}")
+            messagebox.showerror("Erro", f"Não foi possível salvar o arquivo:\n{str(e)}")
+
+
+    # ==========================================
+    # ABA 2: MAPEADOR ANALÍTICO (PROCV)
+    # ==========================================
+    def configurar_mapeador(self):
+        self.arq_alvo_map = ""
+        self.arq_base_map = ""
+        
+        self.frame_uploads_map = ctk.CTkFrame(self.tab_mapeador, fg_color="transparent")
+        self.frame_uploads_map.pack(pady=10, fill="x")
+        
+        self.btn_alvo_map = ctk.CTkButton(self.frame_uploads_map, text="📂 1. Planilha ALVO (Que receberá a coluna)", 
+                                          command=self.selecionar_alvo_map, width=300, height=35, fg_color="#2c2c2e", hover_color="#3a3a3c", border_width=1, border_color="#444")
+        self.btn_alvo_map.pack(pady=5)
+        self.lbl_alvo_map = ctk.CTkLabel(self.frame_uploads_map, text="Nenhum arquivo", text_color="#888")
+        self.lbl_alvo_map.pack(pady=(0, 5))
+
+        self.btn_base_map = ctk.CTkButton(self.frame_uploads_map, text="📂 2. Planilha BASE (Onde os dados estão)", 
+                                          command=self.selecionar_base_map, width=300, height=35, fg_color="#2c2c2e", hover_color="#3a3a3c", border_width=1, border_color="#444")
+        self.btn_base_map.pack(pady=5)
+        self.lbl_base_map = ctk.CTkLabel(self.frame_uploads_map, text="Nenhum arquivo", text_color="#888")
+        self.lbl_base_map.pack()
+
+        self.frame_configs = ctk.CTkFrame(self.tab_mapeador, fg_color="#1c1c1e", corner_radius=5)
+        self.frame_configs.pack(pady=10, padx=20, fill="x")
+        
+        self.lbl_conf_alvo = ctk.CTkLabel(self.frame_configs, text="Chave de Busca (ALVO):", font=("Segoe UI", 12))
+        self.lbl_conf_alvo.grid(row=0, column=0, padx=10, pady=10, sticky="w")
+        self.combo_chave_alvo = ctk.CTkOptionMenu(self.frame_configs, values=["Carregue a planilha"], width=150)
+        self.combo_chave_alvo.grid(row=0, column=1, padx=10, pady=10)
+
+        self.lbl_conf_base = ctk.CTkLabel(self.frame_configs, text="Chave de Busca (BASE):", font=("Segoe UI", 12))
+        self.lbl_conf_base.grid(row=1, column=0, padx=10, pady=10, sticky="w")
+        self.combo_chave_base = ctk.CTkOptionMenu(self.frame_configs, values=["Carregue a planilha"], width=150)
+        self.combo_chave_base.grid(row=1, column=1, padx=10, pady=10)
+
+        self.lbl_conf_imp = ctk.CTkLabel(self.frame_configs, text="Coluna a IMPORTAR:", font=("Segoe UI", 12))
+        self.lbl_conf_imp.grid(row=2, column=0, padx=10, pady=10, sticky="w")
+        self.combo_importar = ctk.CTkOptionMenu(self.frame_configs, values=["Carregue a planilha"], width=150)
+        self.combo_importar.grid(row=2, column=1, padx=10, pady=10)
+
+        self.check_limpar = ctk.CTkCheckBox(self.tab_mapeador, text="Limpar pontuações da Chave (Ideal para CPF/CNPJ)")
+        self.check_limpar.pack(pady=10)
+
+        self.btn_exec_map = ctk.CTkButton(self.tab_mapeador, text="⚡ Importar Coluna", command=self.iniciar_thread_map, 
+                                          fg_color="#005A9E", hover_color="#004070", font=("Segoe UI", 13, "bold"), height=40, width=250)
+        self.btn_exec_map.pack(pady=10)
+        
+        self.progress_map = ctk.CTkProgressBar(self.tab_mapeador, width=350, height=4, progress_color="#005A9E")
+        self.progress_map.pack(pady=10)
+        self.progress_map.set(0)
+
+    def extrair_colunas(self, caminho):
+        if caminho.lower().endswith(('.xlsx', '.xls')): df = pd.read_excel(caminho, nrows=0)
+        else:
+            try: df = pd.read_csv(caminho, sep=';', nrows=0, encoding='utf-8-sig')
+            except: df = pd.read_csv(caminho, sep=';', nrows=0, encoding='latin-1')
+        return list(df.columns)
+
+    def selecionar_alvo_map(self):
+        caminho = filedialog.askopenfilename(filetypes=[("Arquivos", "*.xlsx *.csv *.txt *.TXT")])
+        if caminho:
+            self.arq_alvo_map = caminho
+            self.lbl_alvo_map.configure(text=os.path.basename(caminho), text_color="#00FF7F")
+            colunas = self.extrair_colunas(caminho)
+            if colunas:
+                self.combo_chave_alvo.configure(values=colunas)
+                self.combo_chave_alvo.set(colunas[0])
+
+    def selecionar_base_map(self):
+        caminho = filedialog.askopenfilename(filetypes=[("Arquivos", "*.xlsx *.csv *.txt *.TXT")])
+        if caminho:
+            self.arq_base_map = caminho
+            self.lbl_base_map.configure(text=os.path.basename(caminho), text_color="#00FF7F")
+            colunas = self.extrair_colunas(caminho)
+            if colunas:
+                self.combo_chave_base.configure(values=colunas)
+                self.combo_importar.configure(values=colunas)
+                self.combo_chave_base.set(colunas[0])
+                self.combo_importar.set(colunas[0])
+
+    def iniciar_thread_map(self):
+        if not self.arq_alvo_map or not self.arq_base_map:
+            messagebox.showwarning("Aviso", "Selecione as duas planilhas.")
+            return
+        self.btn_exec_map.configure(state="disabled")
+        self.progress_map.set(0.1)
+        threading.Thread(target=self.processar_mapeador).start()
+
+    def processar_mapeador(self):
+        try:
+            df_alvo = self.ler_arquivo(self.arq_alvo_map)
+            df_base = self.ler_arquivo(self.arq_base_map)
+            self.progress_map.set(0.4)
+
+            ch_alvo = self.combo_chave_alvo.get()
+            ch_base = self.combo_chave_base.get()
+            col_imp = self.combo_importar.get()
+            limpar = self.check_limpar.get() == 1
+
+            mapa = {}
+            for _, row in df_base.iterrows():
+                k = str(row[ch_base]).strip()
+                if limpar: k = re.sub(r'\D', '', k)
+                v = str(row[col_imp]).strip()
+                if k: mapa[k] = v
+
+            self.progress_map.set(0.7)
+
+            novos_valores = []
+            for _, row in df_alvo.iterrows():
+                k = str(row[ch_alvo]).strip()
+                if limpar: k = re.sub(r'\D', '', k)
+                novos_valores.append(mapa.get(k, "NÃO LOCALIZADO"))
+
+            df_alvo.insert(0, f"IMP_{col_imp}", novos_valores)
+            self.progress_map.set(1.0)
+            
+            path = filedialog.asksaveasfilename(defaultextension=".xlsx", filetypes=[("Excel", "*.xlsx"), ("CSV", "*.csv")], initialfile=f"Planilha_PROCV.xlsx")
+            if path:
+                if path.endswith('.csv'): df_alvo.to_csv(path, index=False, sep=';', encoding='utf-8-sig')
+                else: df_alvo.to_excel(path, index=False)
+                messagebox.showinfo("Sucesso", f"A coluna '{col_imp}' foi adicionada!")
+
+        except Exception as e:
+            messagebox.showerror("Erro", f"Falha na importação:\n{str(e)}")
+        finally:
+            self.btn_exec_map.configure(state="normal")
+            self.progress_map.set(0)
+
+    # ==========================================
+    # UTILITÁRIOS GERAIS DE ARQUIVO
+    # ==========================================
+    def ler_arquivo(self, caminho):
+        if caminho.lower().endswith(('.xlsx', '.xls')): return pd.read_excel(caminho, dtype=str).fillna("")
+        else:
+            try: return pd.read_csv(caminho, sep=';', dtype=str, encoding='utf-8-sig').fillna("")
+            except: return pd.read_csv(caminho, sep=';', dtype=str, encoding='latin-1').fillna("")
+
+    def compilar_dados(self, arquivos):
+        lista = []
+        for caminho in arquivos:
+            df = self.ler_arquivo(caminho)
+            df['TIPO'] = "EDUC" if "EDUC" in os.path.basename(caminho).upper() else "AP"
+            lista.append(df)
+        return pd.concat(lista, ignore_index=True) if lista else pd.DataFrame()
 
 if __name__ == "__main__":
-    app = ComparadorApp()
+    app = HubUtilitarios()
     app.mainloop()
