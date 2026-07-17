@@ -1,0 +1,25 @@
+{
+  "name": "auditoria-premium",
+  "version": "1.0.0",
+  "description": "Hub Analítico de Segurados",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder --win"
+  },
+  "build": {
+    "appId": "com.matheus.auditoria",
+    "productName": "Auditoria Premium",
+    "win": {
+      "target": "nsis"
+    }
+  },
+  "dependencies": {
+    "exceljs": "^4.4.0",
+    "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "electron": "^29.1.0",
+    "electron-builder": "^24.13.3"
+  }
+}
