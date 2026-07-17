@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>Auditoria Premium</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap');
+    
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Inter', sans-serif; }
+    
+    body {
+      background: linear-gradient(135deg, #0f172a, #1e1e2f);
+      color: #fff;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 30px 20px;
+      overflow: hidden;
+    }
+
+    /* Glassmorphism Container */
+    .glass-panel {
+      background: rgba(255, 255, 255, 0.03);
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      border-radius: 16px;
+      padding: 20px;
+      width: 100%;
+      max-width: 550px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+    }
+
+    h1 { font-size: 24px; font-weight: 800; text-align: center; margin-bottom: 25px; letter-spacing: -0.5px; }
+
+    /* Tabs */
+    .tabs { display: flex; justify-content: center; gap: 10px; margin-bottom: 20px; }
+    .tab-btn {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255,255,255,0.1);
+      color: #94a3b8;
+      padding: 10px 20px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: 600;
+      transition: all 0.3s ease;
+    }
+    .tab-btn:hover { background: rgba(255,255,255,0.1); color: #fff; }
+    .tab-btn.active { background: #3b82f6; border-color: #3b82f6; color: #fff; box-shadow: 0 4px 15px rgba(59, 130, 246, 0.4); }
+
+    .tab-content { display: none; animation: fadeIn 0.4s ease forwards; }
+    .tab-content.active { display: block; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+
+    /* File Buttons */
+    .upload-box {
+      background: rgba(0, 0, 0, 0.2);
+      border: 1px dashed rgba(255,255,255,0.2);
+      border-radius: 12px;
+      padding: 15px;
+      text-align: center;
+      margin-bottom: 12px;
+      cursor: pointer;
+      transition: all 0.3s ease;
+    }
+    .upload-box:hover { border-color: #3b82f6; background: rgba(59, 130, 246, 0.05); }
+    .upload-title { font-weight: 600; margin-bottom: 5px; color: #cbd5e1; }
+    .file-count { font-size: 12px; color: #10b981; font-weight: 600; }
+
+    .grid-ambos { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+    .col-ap .upload-box:hover { border-color: #3498db; }
+    .col-educ .upload-box:hover { border-color: #9b59b6; }
+
+    /* Input & Action */
+    .input-group { margin-top: 20px; text-align: center; }
+    input[type="number"] {
+      background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1);
+      color: #fff; padding: 12px; border-radius: 8px; width: 80%; text-align: center;
+      outline: none; margin-bottom: 15px; transition: 0.3s;
+    }
+    input[type="number"]:focus { border-color: #3b82f6; }
+
+    .btn-executar {
+      width: 100%; padding: 15px; border: none; border-radius: 8px;
+      background: linear-gradient(90deg, #10b981, #059669);
+      color: white; font-size: 16px; font-weight: 800; cursor: pointer;
+      transition: all 0.3s ease; box-shadow: 0 4px 15px rgba(16, 185, 129, 0.4);
+    }
+    .btn-executar:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(16, 185, 129, 0.6); }
+
+    /* Status Area */
+    #status-area { margin-top: 20px; text-align: center; font-weight: 600; height: 40px; }
+    .loader {
+      display: inline-block; width: 20px; height: 20px; margin-right: 10px;
+      border: 3px solid rgba(255,255,255,0.3); border-radius: 50%;
+      border-top-color: #fff; animation: spin 1s ease-in-out infinite; vertical-align: middle;
+      display: none;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+
+  <div class="glass-panel">
+    <h1>Auditoria Premium</h1>
+    
+    <div class="tabs">
+      <button class="tab-btn active" onclick="switchTab('AP')">📊 AP</button>
+      <button class="tab-btn" onclick="switchTab('EDUC')">🎓 EDUC</button>
+      <button class="tab-btn" onclick="switchTab('AMBOS')">🔗 AMBOS</button>
+    </div>
+
+    <!-- ABA AP -->
+    <div id="tab-AP" class="tab-content active">
+      <div class="upload-box" onclick="selectFiles('apAtual', 'lbl-ap-atual')">
+        <div class="upload-title">📁 Planilhas AP ATUAIS</div>
+        <div class="file-count" id="lbl-ap-atual">Nenhum arquivo</div>
+      </div>
+      <div class="upload-box" onclick="selectFiles('apConf', 'lbl-ap-conf')">
+        <div class="upload-title">📁 Planilhas AP ANTERIORES</div>
+        <div class="file-count" id="lbl-ap-conf">Nenhum arquivo</div>
+      </div>
+    </div>
+
+    <!-- ABA EDUC -->
+    <div id="tab-EDUC" class="tab-content">
+      <div class="upload-box" onclick="selectFiles('educAtual', 'lbl-educ-atual')">
+        <div class="upload-title">📁 Planilhas EDUC ATUAIS</div>
+        <div class="file-count" id="lbl-educ-atual">Nenhum arquivo</div>
+      </div>
+      <div class="upload-box" onclick="selectFiles('educConf', 'lbl-educ-conf')">
+        <div class="upload-title">📁 Planilhas EDUC ANTERIORES</div>
+        <div class="file-count" id="lbl-educ-conf">Nenhum arquivo</div>
+      </div>
+    </div>
+
+    <!-- ABA AMBOS -->
+    <div id="tab-AMBOS" class="tab-content">
+      <div class="grid-ambos">
+        <div class="col-ap">
+          <div class="upload-box" onclick="selectFiles('apAtual', 'lbl-ambos-ap-atual')">
+            <div class="upload-title">📁 AP Atual</div><div class="file-count" id="lbl-ambos-ap-atual">Vazio</div>
+          </div>
+          <div class="upload-box" onclick="selectFiles('apConf', 'lbl-ambos-ap-conf')">
+            <div class="upload-title">📁 AP Anterior</div><div class="file-count" id="lbl-ambos-ap-conf">Vazio</div>
+          </div>
+        </div>
+        <div class="col-educ">
+          <div class="upload-box" onclick="selectFiles('educAtual', 'lbl-ambos-educ-atual')">
+            <div class="upload-title">📁 EDUC Atual</div><div class="file-count" id="lbl-ambos-educ-atual">Vazio</div>
+          </div>
+          <div class="upload-box" onclick="selectFiles('educConf', 'lbl-ambos-educ-conf')">
+            <div class="upload-title">📁 EDUC Anterior</div><div class="file-count" id="lbl-ambos-educ-conf">Vazio</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="input-group">
+      <input type="number" id="sysErrors" placeholder="Erros acusados no sistema (Opcional)">
+      <button class="btn-executar" onclick="processar()">⚡ INICIAR AUDITORIA</button>
+    </div>
+
+    <div id="status-area">
+      <div class="loader" id="loader"></div>
+      <span id="status-text" style="color: #94a3b8;">Aguardando arquivos...</span>
+    </div>
+  </div>
+
+  <script>
+    const { ipcRenderer } = require('electron');
+    let currentMode = 'AP';
+    
+    let arquivos = {
+      apAtual: [], apConf: [], educAtual: [], educConf: []
+    };
+
+    function switchTab(mode) {
+      currentMode = mode;
+      document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+      document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
+      event.target.classList.add('active');
+      document.getElementById('tab-' + mode).classList.add('active');
+    }
+
+    async function selectFiles(key, labelId) {
+      const paths = await ipcRenderer.invoke('selecionar-arquivos');
+      if (paths && paths.length > 0) {
+        arquivos[key] = paths;
+        document.getElementById(labelId).innerText = `${paths.length} arquivo(s) carregado(s)`;
+      }
+    }
+
+    async function processar() {
+      const sysErrors = document.getElementById('sysErrors').value;
+      const statusText = document.getElementById('status-text');
+      const loader = document.getElementById('loader');
+
+      loader.style.display = 'inline-block';
+      statusText.style.color = '#f1c40f';
+      statusText.innerText = 'Processando dados de alta volumetria...';
+
+      const result = await ipcRenderer.invoke('processar-auditoria', { modo: currentMode, arquivos: arquivos });
+      
+      loader.style.display = 'none';
+
+      if (!result.success) {
+        statusText.style.color = '#ef4444';
+        statusText.innerText = result.msg;
+        return;
+      }
+
+      if (result.msg === "Nenhuma divergência encontrada!") {
+        statusText.style.color = '#10b981';
+        statusText.innerText = 'Tudo perfeito! Nenhuma divergência encontrada.';
+        return;
+      }
+
+      let total = result.ap + result.educ;
+      let text = `Exportado: ${total} erros (AP: ${result.ap} | EDUC: ${result.educ})`;
+
+      if (sysErrors) {
+        if (total == sysErrors) {
+          statusText.style.color = '#10b981'; // Verde
+          statusText.innerText = text + ` ➜ ✅ BATEU EXATAMENTE!`;
+        } else {
+          statusText.style.color = '#ef4444'; // Vermelho
+          statusText.innerText = text + ` ➜ ❌ DIVERGIU DO SISTEMA!`;
+        }
+      } else {
+        statusText.style.color = '#3b82f6';
+        statusText.innerText = text + ' ➜ ✔️ Planilha Salva.';
+      }
+    }
+  </script>
+</body>
+</html>
